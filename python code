@@ -1,0 +1,80 @@
+import pandas as pd
+
+from ortools.linear_solver import pywraplp
+
+# I save the puzzle to be solved as an excel csv where blank boxes are zeros
+table = pd.read_csv('sudoku solver table.csv', header = None)
+
+# instantiate the solver
+solver = pywraplp.Solver('SolveSimpleSystem', pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
+
+# create a dictionary to store the variables
+x = {}
+
+###########################################
+'''
+Decision Variables:
+Let Xijk = 1 if number k is in row i col j
+'''
+
+# define the variables
+for i in range(1,10):
+    for j in range(1,10):
+        for k in range(1,10):
+            x[i,j,k] = solver.IntVar(0,1,'x[%s%s%s]' % (i,j,k))
+
+###########################################
+
+'''
+Constraints
+'''
+
+# one number per row
+for k in range(1,10):
+    for i in range(1,10):
+        solver.Add(solver.Sum([x[i,j,k] for j in range(1,10)]) == 1)
+
+# one number per col
+for k in range(1,10):
+    for j in range(1,10):
+        solver.Add(solver.Sum([x[i,j,k] for i in range(1,10)]) == 1)
+
+# one number per space
+for i in range(1,10):
+    for j in range(1,10):
+        solver.Add(solver.Sum([x[i,j,k] for k in range(1,10)]) == 1)
+
+# one number per 3x3 grid
+row_start = [1,4,7]
+col_start = [1,4,7]
+
+for k in range(1,10):
+    for r in row_start:
+        for c in col_start:
+            solver.Add(solver.Sum([solver.Sum([x[i,j,k] for i in range(r, r+3)]) for j in range(c, c+3)]) == 1)
+            
+###########################################
+
+# Initialize a generic sudoku problem that was saved as a CSV
+board = [[table.iloc[i,j] for j in range(9)] for i in range(9)]
+
+
+# initialize the provided numbers into our model
+for i in range(9):  
+    for j in range(9):
+        if board[i][j] != 0:
+            k = board[i][j]
+            solver.Add(x[i+1,j+1,k] == 1)
+
+# solve the problem            
+solver.Solve()
+
+# insert the solutions back into the sudoku board
+for i in range(1,10):
+    for j in range(1,10):
+        for k in range(1,10):
+            if x[i,j,k].solution_value() == 1:
+                board[i-1][j-1] = k
+                
+   
+print(board)
